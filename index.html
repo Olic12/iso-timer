@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0e14">
+<link rel="manifest" href="./manifest.json">
+<title>Isometric Overload Timer</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --card: #11151f;
+    --tension: #ff4d4d;
+    --pause: #3da5ff;
+    --hold: #ffb020;
+    --idle: #2a2f3a;
+    --text: #f2f4f8;
+    --muted: #8a92a6;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    text-align: center;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .timer-wrap {
+    position: relative;
+    width: min(78vw, 320px);
+    height: min(78vw, 320px);
+  }
+  svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .track { fill: none; stroke: var(--idle); stroke-width: 14; }
+  .progress {
+    fill: none;
+    stroke-width: 14;
+    stroke-linecap: round;
+    transition: stroke 0.3s ease;
+  }
+  .center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .phase-label {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .time {
+    font-size: 64px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .round {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .controls {
+    margin-top: 28px;
+    display: flex;
+    gap: 14px;
+  }
+  button {
+    appearance: none;
+    border: none;
+    border-radius: 14px;
+    padding: 14px 28px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text);
+  }
+  #startBtn { background: var(--tension); }
+  #resetBtn { background: var(--idle); }
+  button:active { transform: scale(0.97); }
+  .protocol {
+    margin-top: 26px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.5;
+    max-width: 320px;
+  }
+  .done .phase-label { color: #4dffa0; }
+
+  .active-group {
+    margin-top: -8px;
+    margin-bottom: 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    text-align: center;
+    min-height: 18px;
+  }
+  .active-group .name { color: var(--text); }
+
+  .checklist {
+    margin-top: 32px;
+    width: min(86vw, 360px);
+  }
+  .checklist h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin: 0 0 10px;
+    text-align: center;
+  }
+  .group-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .group-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid #1c2230;
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .group-item.selected {
+    border-color: var(--tension);
+    background: #1a1217;
+  }
+  .group-item .checkbox {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    border-radius: 7px;
+    border: 2px solid var(--idle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: transparent;
+  }
+  .group-item.done .checkbox {
+    background: #4dffa0;
+    border-color: #4dffa0;
+    color: #0b0e14;
+  }
+  .group-item .label {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .group-item.done .label {
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+  .group-item .reset-mini {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 8px;
+  }
+  .progress-summary {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<h1>Isometric Overload Spannung</h1>
+<div class="subtitle">3-Minuten-Protokoll · 6 Runden</div>
+<div class="active-group" id="activeGroupLabel">Muskelgruppe auswählen ↓</div>
+
+<div class="timer-wrap">
+  <svg viewBox="0 0 200 200">
+    <circle class="track" cx="100" cy="100" r="88"></circle>
+    <circle id="progressCircle" class="progress" cx="100" cy="100" r="88"
+      stroke-dasharray="552.9" stroke-dashoffset="0" stroke="var(--idle)"></circle>
+  </svg>
+  <div class="center" id="centerBox">
+    <div class="phase-label" id="phaseLabel">Bereit</div>
+    <div class="time" id="timeLabel">20</div>
+    <div class="round" id="roundLabel">Runde 0 / 6</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="startBtn">Start</button>
+  <button id="resetBtn">Reset</button>
+</div>
+
+<div class="protocol">
+  20s maximale Spannung · 10s Pause · 6 Runden<br>
+  danach 30s Max Hold<br>
+  Keine Bewegung. Nur volle bewusste Kontraktion.
+</div>
+
+<div class="checklist">
+  <h2>Muskelgruppen</h2>
+  <div class="group-list" id="groupList"></div>
+  <div class="progress-summary" id="progressSummary"></div>
+</div>
+
+<audio id="beep" preload="auto"></audio>
+
+<script>
+(function() {
+  const TENSION = 20, PAUSE = 10, ROUNDS = 6, FINAL_HOLD = 30;
+
+  // Build the full sequence of phases
+  const sequence = [];
+  for (let r = 1; r <= ROUNDS; r++) {
+    sequence.push({ type: 'tension', label: 'Spannung', duration: TENSION, round: r });
+    if (r < ROUNDS) sequence.push({ type: 'pause', label: 'Pause', duration: PAUSE, round: r });
+  }
+  sequence.push({ type: 'hold', label: 'Max Hold', duration: FINAL_HOLD, round: ROUNDS });
+
+  const colors = { tension: 'var(--tension)', pause: 'var(--pause)', hold: 'var(--hold)', idle: 'var(--idle)' };
+
+  const progressCircle = document.getElementById('progressCircle');
+  const phaseLabel = document.getElementById('phaseLabel');
+  const timeLabel = document.getElementById('timeLabel');
+  const roundLabel = document.getElementById('roundLabel');
+  const startBtn = document.getElementById('startBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const centerBox = document.getElementById('centerBox');
+  const activeGroupLabel = document.getElementById('activeGroupLabel');
+  const groupListEl = document.getElementById('groupList');
+  const progressSummary = document.getElementById('progressSummary');
+
+  const MUSCLE_GROUPS = [
+    'Waden', 'Oberschenkel vorne', 'Oberschenkel hinten', 'Bauch',
+    'Brust', 'Rücken', 'Bizeps', 'Trizeps', 'Unterarme'
+  ];
+  const STORAGE_KEY = 'isoTimerChecklist';
+
+  let checklistState = {};
+  try {
+    checklistState = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+  } catch (e) { checklistState = {}; }
+
+  let selectedGroup = null;
+
+  function saveChecklist() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checklistState)); } catch (e) {}
+  }
+
+  function renderChecklist() {
+    groupListEl.innerHTML = '';
+    MUSCLE_GROUPS.forEach((name) => {
+      const item = document.createElement('div');
+      item.className = 'group-item';
+      if (checklistState[name]) item.classList.add('done');
+      if (selectedGroup === name) item.classList.add('selected');
+
+      const checkbox = document.createElement('div');
+      checkbox.className = 'checkbox';
+      checkbox.textContent = '✓';
+
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = name;
+
+      item.appendChild(checkbox);
+      item.appendChild(label);
+
+      item.addEventListener('click', (e) => {
+        selectedGroup = name;
+        activeGroupLabel.innerHTML = 'Aktiv: <span class="name">' + name + '</span>';
+        reset();
+        renderChecklist();
+      });
+
+      checkbox.addEventListener('click', (e) => {
+        e.stopPropagation();
+        checklistState[name] = !checklistState[name];
+        saveChecklist();
+        renderChecklist();
+      });
+
+      groupListEl.appendChild(item);
+    });
+
+    const doneCount = MUSCLE_GROUPS.filter(g => checklistState[g]).length;
+    progressSummary.textContent = doneCount + ' / ' + MUSCLE_GROUPS.length + ' erledigt';
+  }
+
+  const CIRCUMFERENCE = 2 * Math.PI * 88;
+  progressCircle.setAttribute('stroke-dasharray', CIRCUMFERENCE.toFixed(1));
+
+  let stepIndex = 0;
+  let remaining = sequence[0].duration;
+  let running = false;
+  let rafId = null;
+  let lastTick = null;
+  let audioCtx = null;
+
+  function ensureAudio() {
+    try {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    } catch (e) {
+      audioCtx = null;
+    }
+  }
+
+  function beep(freq = 880, dur = 0.12) {
+    try {
+      ensureAudio();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + dur);
+    } catch (e) {}
+  }
+
+  function render() {
+    const step = sequence[stepIndex];
+    const frac = remaining / step.duration;
+    progressCircle.setAttribute('stroke-dashoffset', (CIRCUMFERENCE * frac).toFixed(1));
+    progressCircle.setAttribute('stroke', colors[step.type]);
+    phaseLabel.textContent = step.label;
+    timeLabel.textContent = Math.ceil(remaining);
+    roundLabel.textContent = step.type === 'hold'
+      ? 'Finale · Max Hold'
+      : `Runde ${step.round} / ${ROUNDS}`;
+    centerBox.classList.remove('done');
+  }
+
+  function showDone() {
+    phaseLabel.textContent = 'Fertig!';
+    timeLabel.textContent = '✓';
+    roundLabel.textContent = 'Gut gemacht';
+    progressCircle.setAttribute('stroke-dashoffset', '0');
+    progressCircle.setAttribute('stroke', colors.idle);
+    centerBox.classList.add('done');
+  }
+
+  function nextStep() {
+    beep(stepIndex + 1 < sequence.length && sequence[stepIndex + 1].type === 'tension' ? 1000 : 600);
+    stepIndex++;
+    if (stepIndex >= sequence.length) {
+      running = false;
+      startBtn.textContent = 'Start';
+      showDone();
+      beep(1200, 0.3);
+      if (selectedGroup) {
+        checklistState[selectedGroup] = true;
+        saveChecklist();
+        renderChecklist();
+      }
+      return;
+    }
+    remaining = sequence[stepIndex].duration;
+    render();
+  }
+
+  function tick(now) {
+    if (!running) return;
+    if (lastTick === null) lastTick = now;
+    const dt = (now - lastTick) / 1000;
+    lastTick = now;
+    remaining -= dt;
+    if (remaining <= 0) {
+      nextStep();
+    } else {
+      render();
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function start() {
+    if (running) return;
+    ensureAudio();
+    running = true;
+    lastTick = null;
+    startBtn.textContent = 'Pause';
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function pause() {
+    running = false;
+    startBtn.textContent = 'Weiter';
+    if (rafId) cancelAnimationFrame(rafId);
+  }
+
+  function reset() {
+    running = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    stepIndex = 0;
+    remaining = sequence[0].duration;
+    startBtn.textContent = 'Start';
+    render();
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (stepIndex >= sequence.length) { reset(); return; }
+    running ? pause() : start();
+  });
+  resetBtn.addEventListener('click', reset);
+
+  render();
+  renderChecklist();
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
